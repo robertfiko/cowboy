@@ -165,8 +165,8 @@ proc_lib_hack(Req, Env, Middlewares) ->
 	catch
 		_:Reason when element(1, Reason) =:= cowboy_handler ->
 			exit(Reason);
-		_:Reason ->
-			exit({Reason, erlang:get_stacktrace()})
+		_:Reason:Stacktrace ->
+			exit({Reason, Stacktrace})
 	end.
 
 %% @todo

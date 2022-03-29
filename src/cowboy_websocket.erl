@@ -359,10 +359,10 @@ handler_call(State=#state{handler=Handler}, HandlerState,
 			end;
 		{stop, HandlerState2} ->
 			websocket_close(State, HandlerState2, stop)
-	catch Class:Reason ->
+	catch Class:Reason:Stacktrace ->
 		websocket_send_close(State, {crash, Class, Reason}),
 		handler_terminate(State, HandlerState, {crash, Class, Reason}),
-		erlang:raise(Class, Reason, erlang:get_stacktrace())
+		erlang:raise(Class, Reason, Stacktrace)
 	end.
 
 -spec websocket_send(cow_ws:frame(), #state{}) -> ok | stop | {error, atom()}.

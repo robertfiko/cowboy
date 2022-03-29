@@ -658,8 +658,8 @@ variances(Req, State=#state{content_types_p=CTP,
 						<<"vary">>, [H|Variances5], Req2),
 					resource_exists(Req3, State2)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 variances(Req, State, Variances) ->
@@ -697,8 +697,8 @@ if_match(Req, State, EtagsList) ->
 				%% Etag may be `undefined' which cannot be a member.
 				false -> precondition_failed(Req2, State2)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 if_match_must_not_exist(Req, State) ->
@@ -725,8 +725,8 @@ if_unmodified_since(Req, State, IfUnmodifiedSince) ->
 				true -> precondition_failed(Req2, State2);
 				false -> if_none_match_exists(Req2, State2)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 if_none_match_exists(Req, State) ->
@@ -751,8 +751,8 @@ if_none_match(Req, State, EtagsList) ->
 						false -> method(Req2, State2)
 					end
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 %% Weak Etag comparison: only check the opaque tag.
@@ -794,8 +794,8 @@ if_modified_since(Req, State, IfModifiedSince) ->
 				true -> method(Req2, State2);
 				false -> not_modified(Req2, State2)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 not_modified(Req, State) ->
@@ -805,11 +805,11 @@ not_modified(Req, State) ->
 			try set_resp_expires(Req3, State2) of
 				{Req4, State3} ->
 					respond(Req4, State3, 304)
-			catch Class:Reason ->
-				error_terminate(Req, State2, Class, Reason)
+			catch Class:Reason:Stacktrace ->
+				error_terminate(Req, State2, Class, Reason, Stacktrace)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 precondition_failed(Req, State) ->
@@ -955,8 +955,9 @@ process_content_type(Req, State=#state{method=Method, exists=Exists}, Fun) ->
 				Exists -> respond(Req3, State2, 303);
 				true -> respond(Req3, State2, 201)
 			end
-	end catch Class:Reason = {case_clause, no_call} ->
-		error_terminate(Req, State, Class, Reason)
+	end
+	catch Class:Reason:Stacktrace when Reason =:= {case_clause, no_call} ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 %% If PUT was used then the resource has been created at the current URL.
@@ -982,8 +983,8 @@ set_resp_body_etag(Req, State) ->
 	try set_resp_etag(Req, State) of
 		{Req2, State2} ->
 			set_resp_body_last_modified(Req2, State2)
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 %% Set the Last-Modified header if any for the response provided.
@@ -999,8 +1000,8 @@ set_resp_body_last_modified(Req, State) ->
 						<<"last-modified">>, LastModifiedBin, Req2),
 					set_resp_body_expires(Req3, State2)
 			end
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 %% Set the Expires header if any for the response provided.
@@ -1008,8 +1009,8 @@ set_resp_body_expires(Req, State) ->
 	try set_resp_expires(Req, State) of
 		{Req2, State2} ->
 			set_resp_body(Req2, State2)
-	catch Class:Reason ->
-		error_terminate(Req, State, Class, Reason)
+	catch Class:Reason:Stacktrace ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 %% Set the response headers and call the callback found using
@@ -1023,8 +1024,8 @@ set_resp_body(Req, State=#state{content_type_a={_, Callback}}) ->
 			State2 = State#state{handler_state=HandlerState2},
 			Req3 = cowboy_req:set_resp_body(Body, Req2),
 			multiple_choices(Req3, State2)
-	end catch Class:Reason = {case_clause, no_call} ->
-		error_terminate(Req, State, Class, Reason)
+	end catch Class:Reason:Stacktrace when Reason =:= {case_clause, no_call} ->
+		error_terminate(Req, State, Class, Reason, Stacktrace)
 	end.
 
 multiple_choices(Req, State) ->
@@ -1126,8 +1127,8 @@ call(Req, State=#state{handler=Handler, handler_state=HandlerState},
 		true ->
 			try
 				Handler:Callback(Req, HandlerState)
-			catch Class:Reason ->
-				error_terminate(Req, State, Class, Reason)
+			catch Class:Reason:Stacktrace ->
+				error_terminate(Req, State, Class, Reason, Stacktrace)
 			end;
 		false ->
 			no_call
@@ -1148,10 +1149,10 @@ next(Req, State, StatusCode) when is_integer(StatusCode) ->
 respond(Req, State, StatusCode) ->
 	terminate(cowboy_req:reply(StatusCode, Req), State).
 
--spec error_terminate(cowboy_req:req(), #state{}, atom(), any()) -> no_return().
-error_terminate(Req, #state{handler=Handler, handler_state=HandlerState}, Class, Reason) ->
+-spec error_terminate(cowboy_req:req(), #state{}, atom(), any(), any()) -> no_return().
+error_terminate(Req, #state{handler=Handler, handler_state=HandlerState}, Class, Reason, Stacktrace) ->
 	cowboy_handler:terminate({crash, Class, Reason}, Req, HandlerState, Handler),
-	erlang:raise(Class, Reason, erlang:get_stacktrace()).
+	erlang:raise(Class, Reason, Stacktrace).
 
 terminate(Req, #state{handler=Handler, handler_state=HandlerState}) ->
 	Result = cowboy_handler:terminate(normal, Req, HandlerState, Handler),
